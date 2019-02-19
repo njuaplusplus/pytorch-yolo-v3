@@ -55,7 +55,7 @@ def write_helper(x, results, ann_names):
                         label,
                         x[-2].item(),
                         c1[0].item(), c1[1].item(),
-                        c2[0].item(), c2[0].item()))
+                        c2[0].item(), c2[1].item()))
 
     color = random.choice(colors)
     cv2.rectangle(img, c1, c2,color, 1)
