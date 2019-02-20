@@ -163,7 +163,15 @@ if __name__ ==  '__main__':
         imlist = [osp.join(osp.realpath('.'), images, img) for img in os.listdir(images) if os.path.splitext(img)[1] == '.png' or os.path.splitext(img)[1] =='.jpeg' or os.path.splitext(img)[1] =='.jpg']
     except NotADirectoryError:
         imlist = []
-        imlist.append(osp.join(osp.realpath('.'), images))
+        if os.path.splitext(images)[1] in ['.png', '.jpg', '.jpeg']:
+            imlist.append(osp.join(osp.realpath('.'), images))
+        elif os.path.splitext(images)[1] in ['.txt', ]:
+            # load image filenames from the txt file
+            with open(images) as in_file:
+                for l in in_file:
+                    l = l.strip()
+                    if l and os.path.splitext(l)[1] in ['.png', '.jpg', '.jpeg']:
+                        imlist.append(l)
     except FileNotFoundError:
         print ("No file or directory with the name {}".format(images))
         exit()
