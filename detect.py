@@ -42,7 +42,7 @@ def get_test_input(input_dim, CUDA):
     return img_
 
 
-def write_helper(x, results, ann_names):
+def write_helper(x, results, ann_names, classes, colors):
     c1 = tuple(x[1:3].int())
     c2 = tuple(x[3:5].int())
     img = results[int(x[0])]
@@ -66,15 +66,14 @@ def write_helper(x, results, ann_names):
     return img
 
 
-def arg_parse():
+def arg_parse(args_list=None):
     """
     Parse arguements to the detect module
-    
+
     """
-    
-    
+
     parser = argparse.ArgumentParser(description='YOLO v3 Detection Module')
-   
+
     parser.add_argument("--images", dest = 'images', help = 
                         "Image / Directory containing images to perform detection upon",
                         default = "imgs", type = str)
@@ -93,23 +92,26 @@ def arg_parse():
     parser.add_argument('--num-of-classes', dest = 'num_of_classes', help = 
                         'Number of classes',
                         default=80, type=int)
-    parser.add_argument("--weights", dest = 'weightsfile', help = 
-                        "weightsfile",
-                        default = "yolov3.weights", type = str)
+    parser.add_argument('--weights', dest = 'weightsfile', help = 
+                        'weightsfile',
+                        default = 'yolov3.weights', type = str)
     parser.add_argument("--reso", dest = 'reso', help = 
                         "Input resolution of the network. Increase to increase accuracy. Decrease to increase speed",
                         default = "416", type = str)
     parser.add_argument("--scales", dest = "scales", help = "Scales to use for detection",
                         default = "1,2,3", type = str)
-    
+    parser.add_argument('--crop-area', dest='crop_area', help='Area to crop: left|top|right|bottom')
+    parser.add_argument('--silent', dest='silent', action='store_true')
+
+    if args_list is not None and type(args_list) == list:
+        return parser.parse_args(args_list)
+
     return parser.parse_args()
 
-if __name__ ==  '__main__':
-    args = arg_parse()
-    
+
+def run_detection(args):
     scales = args.scales
-    
-    
+
 #        scales = [int(x) for x in scales.split(',')]
 #        
 #        
@@ -141,10 +143,12 @@ if __name__ ==  '__main__':
     classes = load_classes(args.namesfile)
 
     #Set up the neural network
-    print("Loading network.....")
+    if not args.silent:
+        print("Loading network.....")
     model = Darknet(args.cfgfile)
     model.load_weights(args.weightsfile)
-    print("Network successfully loaded")
+    if not args.silent:
+        print("Network successfully loaded")
 
     model.net_info["height"] = args.reso
     inp_dim = int(model.net_info["height"])
@@ -191,6 +195,10 @@ if __name__ ==  '__main__':
     else:
         imlist_batches = [[x] for x in imlist]
 
+    # Make sure we only use crop_area with only one image
+    if args.crop_area:
+        assert len(imlist_batches) == 1 and len(imlist_batches[0]) == 1
+
     write = False
     # model(get_test_input(inp_dim, CUDA), CUDA)
 
@@ -198,7 +206,7 @@ if __name__ ==  '__main__':
 
     for batch_i, imlist_batch in enumerate(imlist_batches):
 
-        batch = list(map(prep_image, imlist_batch, [inp_dim for x in range(len(imlist_batch))]))
+        batch = list(map(prep_image, imlist_batch, [inp_dim for x in range(len(imlist_batch))], [args.crop_area for x in range(len(imlist_batch))]))
         im_batch = [x[0] for x in batch]
         orig_ims = [x[1] for x in batch]
         im_dim_list = [x[2] for x in batch]
@@ -269,26 +277,35 @@ if __name__ ==  '__main__':
 
         det_names = list(map(lambda x: os.path.join(args.det, os.path.split(x)[-1][:-3]+'txt'), imlist_batch))
 
-        list(map(lambda x: write_helper(x, orig_ims, det_names), output))
+        list(map(lambda x: write_helper(x, orig_ims, det_names, classes, colors), output))
 
         det_names = pd.Series(imlist_batch).apply(lambda x: "{}/det_{}".format(args.det,x.split("/")[-1]))
 
         list(map(cv2.imwrite, det_names, orig_ims))
 
-        print("{0:d}-th batch finished in {1:6.3f} seconds".format(batch_i, end - start))
-        print("----------------------------------------------------------")
+        if not args.silent:
+            print("{0:d}-th batch finished in {1:6.3f} seconds".format(batch_i, end - start))
+            print("----------------------------------------------------------")
 
     end = time.time()
 
-    print()
-    print("SUMMARY")
-    print("----------------------------------------------------------")
-    print("{:25s}: {}".format("Task", "Time Taken (in seconds)"))
-    print()
-    print("{:25s}: {:2.3f}".format("Detection (" + str(len(imlist)) +  " images)", end - start_det_loop))
-    print("{:25s}: {:2.3f}".format("Average time_per_img", (end - start_det_loop)/len(imlist)))
-    print("----------------------------------------------------------")
-
+    if not args.silent:
+        print()
+        print("SUMMARY")
+        print("----------------------------------------------------------")
+        print("{:25s}: {}".format("Task", "Time Taken (in seconds)"))
+        print()
+        print("{:25s}: {:2.3f}".format("Detection (" + str(len(imlist)) +  " images)", end - start_det_loop))
+        print("{:25s}: {:2.3f}".format("Average time_per_img", (end - start_det_loop)/len(imlist)))
+        print("----------------------------------------------------------")
 
     torch.cuda.empty_cache()
 
+    if args.crop_area is not None:
+        # Return the output for cropped parts
+        return output.cpu().numpy()
+
+
+if __name__ ==  '__main__':
+    args = arg_parse()
+    run_detection(args)

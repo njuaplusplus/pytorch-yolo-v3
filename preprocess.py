@@ -28,7 +28,7 @@ def letterbox_image(img, inp_dim):
 
 
         
-def prep_image(img, inp_dim):
+def prep_image(img, inp_dim, crop_area=None):
     """
     Prepare image for inputting to the neural network. 
     
@@ -36,6 +36,9 @@ def prep_image(img, inp_dim):
     """
 
     orig_im = cv2.imread(img)
+    if crop_area is not None:
+        left, top, right, bottom = [int(x) for x in crop_area.split('|')]
+        orig_im = orig_im[top:bottom+1,left:right+1]
     dim = orig_im.shape[1], orig_im.shape[0]
     img = (letterbox_image(orig_im, (inp_dim, inp_dim)))
     img_ = img[:,:,::-1].transpose((2,0,1)).copy()
